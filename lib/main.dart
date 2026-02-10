@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart'; // We will create this file shortly
 
-void main() {
+import 'package:firebase_core/firebase_core.dart';
+import 'package:restaurant_app/firebase_options.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const RestaurantApp());
 }
 

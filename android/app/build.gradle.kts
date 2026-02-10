@@ -6,6 +6,17 @@ val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
+val hasKeystoreProperties = keystorePropertiesFile.exists() && listOf(
+    "keyAlias",
+    "keyPassword",
+    "storeFile",
+    "storePassword",
+).all { key -> keystoreProperties.getProperty(key) != null }
+
+fun keystoreProp(name: String): String {
+    return keystoreProperties.getProperty(name)
+        ?: error("Missing keystore property '$name' in key.properties")
+}
 
 plugins {
     id("com.android.application")
@@ -42,18 +53,22 @@ android {
         versionName = flutter.versionName
     }
 
-    signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["storePassword"] as String
+    if (hasKeystoreProperties) {
+        signingConfigs {
+            create("release") {
+                keyAlias = keystoreProp("keyAlias")
+                keyPassword = keystoreProp("keyPassword")
+                storeFile = file(keystoreProp("storeFile"))
+                storePassword = keystoreProp("storePassword")
+            }
         }
     }
 
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
+            if (hasKeystoreProperties) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

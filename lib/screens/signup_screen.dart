@@ -1,17 +1,63 @@
 import 'package:flutter/material.dart';
-import 'home_screen.dart';
+import 'login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
 
-class SignupScreen extends StatelessWidget {
+class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
+
+  @override
+  _SignupScreenState createState() => _SignupScreenState();
+}
+
+class _SignupScreenState extends State<SignupScreen> {
+  final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
+
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _register() async {
+    try {
+      UserCredential userCredential = await _authService.register(
+        fullName: _fullNameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      if (userCredential.user != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registration successful!')),
+        );
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to register: ${e.message}')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('An error occurred: $e')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          // *** التعديل هنا: استخدام نفس الخلفية البرتقالية ***
           Container(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [Colors.orange, Colors.deepOrange],
                 begin: Alignment.topCenter,
@@ -19,14 +65,13 @@ class SignupScreen extends StatelessWidget {
               ),
             ),
           ),
-          // المحتوى الرئيسي
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(32.0),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
+                  const Text(
                     'Create a New Account',
                     style: TextStyle(
                       fontSize: 28,
@@ -34,42 +79,41 @@ class SignupScreen extends StatelessWidget {
                       color: Colors.white,
                     ),
                   ),
-                  SizedBox(height: 40),
+                  const SizedBox(height: 40),
                   TextField(
-                    // *** التعديل هنا: تغيير لون النص والأيقونة ***
-                    style: TextStyle(color: Colors.deepOrange),
-                    decoration: InputDecoration(
+                    controller: _fullNameController,
+                    style: const TextStyle(color: Colors.deepOrange),
+                    decoration: const InputDecoration(
                       hintText: 'Full Name',
                       prefixIcon: Icon(Icons.person, color: Colors.deepOrange),
                     ),
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   TextField(
+                    controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    // *** التعديل هنا: تغيير لون النص والأيقونة ***
-                    style: TextStyle(color: Colors.deepOrange),
-                    decoration: InputDecoration(
+                    style: const TextStyle(color: Colors.deepOrange),
+                    decoration: const InputDecoration(
                       hintText: 'Email',
                       prefixIcon: Icon(Icons.email, color: Colors.deepOrange),
                     ),
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   TextField(
+                    controller: _passwordController,
                     obscureText: true,
-                    // *** التعديل هنا: تغيير لون النص والأيقونة ***
-                    style: TextStyle(color: Colors.deepOrange),
-                    decoration: InputDecoration(
+                    style: const TextStyle(color: Colors.deepOrange),
+                    decoration: const InputDecoration(
                       hintText: 'Password',
                       prefixIcon: Icon(Icons.lock, color: Colors.deepOrange),
                     ),
                   ),
-                  SizedBox(height: 30),
+                  const SizedBox(height: 30),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      // *** التعديل هنا: تغيير لون النص ليتناسب ***
                       foregroundColor: Colors.deepOrange,
                       backgroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(
+                      padding: const EdgeInsets.symmetric(
                         horizontal: 80,
                         vertical: 15,
                       ),
@@ -77,23 +121,21 @@ class SignupScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(30),
                       ),
                     ),
-                    onPressed: () {
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (context) => HomeScreen()),
-                      );
-                    },
-                    child: Text('Sign Up', style: TextStyle(fontSize: 18)),
+                    onPressed: _register,
+                    child: const Text(
+                      'Sign Up',
+                      style: TextStyle(fontSize: 18),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          // زر الرجوع للخلف في الأعلى
           Positioned(
             top: 40,
             left: 10,
             child: IconButton(
-              icon: Icon(Icons.arrow_back_ios, color: Colors.white),
+              icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
               onPressed: () {
                 Navigator.of(context).pop();
               },

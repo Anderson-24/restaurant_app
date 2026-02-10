@@ -1,62 +1,114 @@
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
+import '../models/enums/menu_category.dart';
+import '../models/menu_item.dart';
+import '../services/cart_service.dart';
+import '../services/menu_service.dart';
+import '../widgets/app_drawer.dart';
+import '../widgets/add_to_cart_dialog.dart';
+import '../widgets/menu_item_card.dart';
+import 'cart_screen.dart';
 import 'profile_screen.dart'; // *** إضافة 1: استدعاء شاشة الملف الشخصي ***
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  MenuCategory _selectedCategory = MenuCategory.mainCourses;
+  int _currentPage = 0;
+  final int _itemsPerPage = 3;
+  final TextEditingController _searchController = TextEditingController();
+  final MenuService _menuService = MenuService();
+  final CartService _cartService = CartService();
+  List<MenuItem> _menuItems = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMenuItems();
+  }
+
+  Future<void> _loadMenuItems() async {
+    final items = await _menuService.getAllMenuItems();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _menuItems = items;
+      _isLoading = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _resetPaginationAndSearch() {
+    _currentPage = 0;
+    _searchController.clear();
+  }
+
+  void _onCategorySelected(MenuCategory category) {
+    setState(() {
+      _selectedCategory = category;
+      _resetPaginationAndSearch();
+    });
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {
+      _currentPage = 0;
+    });
+  }
+
+  Future<void> _showAddToCartDialog(MenuItem item) async {
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AddToCartDialog(
+          item: item,
+          onAdd: (quantity) {
+            _cartService.addItem(item, quantity);
+            setState(() {});
+          },
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final query = _searchController.text.trim().toLowerCase();
+    final filteredMenuItems = query.isNotEmpty
+        ? _menuItems
+              .where((item) => item.title.toLowerCase().contains(query))
+              .toList()
+        : _menuItems
+              .where((item) => item.category == _selectedCategory.key)
+              .toList();
+
+    final totalPages = (filteredMenuItems.length / _itemsPerPage).ceil().clamp(
+      1,
+      9999,
+    );
+    final safePage = _currentPage.clamp(0, totalPages - 1);
+    final offset = safePage * _itemsPerPage;
+    final pagedItems = filteredMenuItems
+        .skip(offset)
+        .take(_itemsPerPage)
+        .toList();
+    final hasPrevious = safePage > 0;
+    final hasNext = safePage < totalPages - 1;
+
     return Scaffold(
       backgroundColor: Colors.white,
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            UserAccountsDrawerHeader(
-              accountName: Text(
-                "Your Name",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              accountEmail: Text("your.email@example.com"),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Text(
-                  "Y",
-                  style: TextStyle(fontSize: 40.0, color: Colors.deepOrange),
-                ),
-              ),
-              decoration: BoxDecoration(color: Colors.deepOrange),
-            ),
-            ListTile(
-              leading: Icon(Icons.restaurant_menu, color: Colors.deepOrange),
-              title: Text('Menu'),
-              onTap: () => Navigator.pop(context),
-            ),
-            ListTile(
-              leading: Icon(Icons.history),
-              title: Text('Order History'),
-              onTap: () => Navigator.pop(context),
-            ),
-            ListTile(
-              leading: Icon(Icons.settings),
-              title: Text('Settings'),
-              onTap: () => Navigator.pop(context),
-            ),
-            Divider(),
-            ListTile(
-              leading: Icon(Icons.logout),
-              title: Text('Logout'),
-              onTap: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => LoginScreen()),
-                  (Route<dynamic> route) => false,
-                );
-              },
-            ),
-          ],
-        ),
-      ),
+      drawer: AppDrawer(),
 
       appBar: AppBar(
         title: Text(
@@ -77,15 +129,78 @@ class HomeScreen extends StatelessWidget {
               ).push(MaterialPageRoute(builder: (context) => ProfileScreen()));
             },
           ),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: Icon(Icons.shopping_cart_outlined),
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          CartScreen(cartService: _cartService),
+                    ),
+                  );
+                  setState(() {});
+                },
+              ),
+              if (_cartService.totalItemsCount > 0)
+                Positioned(
+                  right: 4,
+                  top: 4,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _cartService.totalItemsCount.toString(),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
           SizedBox(width: 10),
         ],
       ),
 
       body: ListView(
         children: [
+          SizedBox(height: 12),
+          SizedBox(
+            height: 48,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              scrollDirection: Axis.horizontal,
+              children: MenuCategory.values.map((category) {
+                final isSelected = category == _selectedCategory;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                  child: ChoiceChip(
+                    label: Text(category.label),
+                    selected: isSelected,
+                    selectedColor: Colors.deepOrange.shade100,
+                    labelStyle: TextStyle(
+                      color: isSelected ? Colors.deepOrange : Colors.black87,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    onSelected: (_) => _onCategorySelected(category),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 16.0),
             child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
               decoration: InputDecoration(
                 hintText: 'Search for a dish...',
                 prefixIcon: Icon(Icons.search, color: Colors.orange),
@@ -117,7 +232,7 @@ class HomeScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Text(
-              'Popular Dishes',
+              query.isNotEmpty ? 'Filtered' : _selectedCategory.label,
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -126,82 +241,45 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           SizedBox(height: 10),
-          MenuItemCard(
-            title: 'Beef Burger',
-            description: 'Grilled beef patty with cheese, lettuce, and tomato.',
-            price: '\$12.99',
-            imageUrl:
-                'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800',
-          ),
-          MenuItemCard(
-            title: 'Margherita Pizza',
-            description:
-                'Italian dough with tomato sauce and mozzarella cheese.',
-            price: '\$15.50',
-            imageUrl:
-                'https://images.unsplash.com/photo-1594007654729-407eedc4be65?w=800',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class MenuItemCard extends StatelessWidget {
-  final String title;
-  final String description;
-  final String price;
-  final String imageUrl;
-
-  const MenuItemCard({
-    super.key,
-    required this.title,
-    required this.description,
-    required this.price,
-    required this.imageUrl,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      clipBehavior: Clip.antiAlias,
-      child: Row(
-        children: [
-          Image.network(imageUrl, width: 120, height: 120, fit: BoxFit.cover),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    description,
-                    style: TextStyle(color: Colors.grey[700], fontSize: 14),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    price,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.deepOrange,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+          if (_isLoading)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24.0),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else
+            ...pagedItems.map(
+              (item) => MenuItemCard(
+                item: item,
+                onAddToCart: () => _showAddToCartDialog(item),
               ),
+            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: hasPrevious
+                      ? () {
+                          setState(() {
+                            _currentPage -= 1;
+                          });
+                        }
+                      : null,
+                  child: Text('Previous'),
+                ),
+                Text('${safePage + 1} / $totalPages'),
+                TextButton(
+                  onPressed: hasNext
+                      ? () {
+                          setState(() {
+                            _currentPage += 1;
+                          });
+                        }
+                      : null,
+                  child: Text('Next'),
+                ),
+              ],
             ),
           ),
         ],
